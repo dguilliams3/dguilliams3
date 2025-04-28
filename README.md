@@ -22,7 +22,7 @@
 
 ---
 
-### 🔊 [AI Audio Stack](https://github.com/dguilliams3/ai-audio-project)
+### 🔊 [AI Audio Stack](https://github.com/dguilliams3/ai-audio-processing-pipeline)
 > Wav2Vec2 fine-tuning pipeline  
 > ⛓️ Full MLOps: Docker, GitHub Actions, S3 checkpoints  
 > 🧪 Real-world audio modeling setup
