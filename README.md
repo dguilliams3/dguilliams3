@@ -8,10 +8,14 @@
 
 ## 📦 Featured Projects
 
-### 🧠 [Sentiment Escalation Pipeline](https://github.com/dguilliams3/sentiment-escalation-engine)
-> Multi-agent, Redis-orchestrated NLP system  
-> 🚨 Handles classification, novelty, escalation, and explainability  
-> 🐳 Built with Flask, Docker, and GPT-4o
+### 🛡️ [Agentic CVE Triage System](https://github.com/dguilliams3/mcp-agentic-security-escalation)
+
+> ⚙️ LangChain ReAct agent built with MCP-adhering tool isolation    
+> 🧠 Uses FAISS + GPT-4o-mini + OpenAI Embeddings for semantic CVE matching and risk assessment    
+> 📎 Structured prompt injection (RAG) with enforced JSON output schemas    
+> 🚀 High-throughput async batching with decoupled logging and persistence    
+> 🐳 Dockerized stack with Redis, FastAPI, SQLite, and Streamlit dashboard    
+> 🔒 Designed for scalable, explainable security incident triage in real-world workflows    
 
 ---
 
