@@ -8,6 +8,17 @@
 
 ## 📦 Featured Projects
 
+### 🛡️ [Agentic CVE Triage System](https://github.com/dguilliams3/mcp-agentic-security-escalation)
+
+> ⚙️ LangChain ReAct agent built with MCP-adhering tool isolation    
+> 🧠 Uses FAISS + GPT-4o-mini + OpenAI Embeddings for semantic CVE matching and risk assessment    
+> 📎 Structured prompt injection (RAG) with enforced JSON output schemas    
+> 🚀 High-throughput async batching with decoupled logging and persistence    
+> 🐳 Dockerized stack with Redis, FastAPI, SQLite, and Streamlit dashboard    
+> 🔒 Designed for scalable, explainable security incident triage in real-world workflows
+
+---
+
 ### 📚 [Narrative RAG](https://github.com/dguilliams3/narrative-data-process-for-RAG-pipeline)
 > Long-form context retrieval + GPT-based answering  
 > 🧾 Designed for high-fidelity narrative QA  
