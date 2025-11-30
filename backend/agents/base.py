@@ -1,14 +1,15 @@
 """Base domain agent implementation."""
 
+import json
 import logging
 from datetime import datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
-from anthropic import Anthropic
-from smolagents import CodeAgent, ToolCallingAgent
+from smolagents import ToolCallingAgent
+from smolagents.models import AnthropicModel
 
-from backend.agents.tools import FetchURLTool, StoreItemTool, WebSearchTool
+from backend.agents.tools import FetchURLTool, WebSearchTool
 from backend.config import settings
 from backend.db.events import EventLog
 from backend.db.sqlite import ItemRepository
@@ -25,18 +26,36 @@ class DomainAgent:
         config: DomainConfig,
         item_repo: ItemRepository,
         event_log: EventLog,
-        anthropic_client: Anthropic,
     ) -> None:
         self.config = config
         self.item_repo = item_repo
         self.event_log = event_log
-        self.anthropic = anthropic_client
 
         # Initialize tools
         self.tools = [
             WebSearchTool(api_key=settings.brave_search_api_key),
             FetchURLTool(),
         ]
+
+        # Initialize SmolAgents model
+        self.model = AnthropicModel(
+            model_id=settings.default_filter_model,
+            api_key=settings.anthropic_api_key,
+        )
+
+        # Create ToolCallingAgent for discovery
+        self.discovery_agent = ToolCallingAgent(
+            tools=self.tools,
+            model=self.model,
+            max_steps=15,  # Allow multiple tool calls
+            verbosity_level=1,
+        )
+
+        # Create agent for synthesis (no tools needed)
+        self.synthesis_model = AnthropicModel(
+            model_id=settings.default_synthesis_model,
+            api_key=settings.anthropic_api_key,
+        )
 
     async def discover(self) -> list[dict[str, Any]]:
         """
@@ -51,65 +70,86 @@ class DomainAgent:
             if source.type == "web_search" and source.query:
                 search_queries.append(source.query)
 
-        # Create discovery prompt
+        # Create discovery prompt with proper final_answer guidance
         discover_prompt = f"""You are researching recent developments in {self.config.name}.
 
 Domain description: {self.config.description}
 
 Your task:
-1. Use web_search to find recent news, papers, and developments
-2. For promising results, use fetch_url to get full content
-3. Analyze each finding and prepare structured data for storage
+1. Use web_search tool to find recent news, papers, and developments for each query below
+2. For the most promising results (top 3-5), use fetch_url tool to get full content
+3. Analyze each finding and score its significance
+
+{self.config.filter_prompt}
 
 Search queries to execute:
 {chr(10).join(f'- {q}' for q in search_queries)}
 
-Focus on developments from the last 7 days.
-Prioritize primary sources over news aggregators.
+Focus on developments from the last 7 days. Prioritize primary sources over news aggregators.
 
-For each significant finding, return a JSON object with:
-- title: clear, descriptive title
-- source: source name (e.g., "Nature", "arXiv")
-- source_url: full URL
-- summary: 2-3 sentence summary
-- significance: why this matters
-- significance_score: 0.0-1.0 (use the scoring guide)
+IMPORTANT: After gathering information, you MUST call final_answer with a JSON array of findings.
 
-Scoring guide:
+Expected output schema (use final_answer tool):
+{{
+  "findings": [
+    {{
+      "title": "[descriptive title of the finding]",
+      "source": "[source name like Nature, arXiv, or publication name]",
+      "source_url": "[full URL to the article]",
+      "summary": "[2-3 sentence summary of what was discovered or announced]",
+      "significance": "[explanation of why this finding matters to the field]",
+      "significance_score": "[number between 0.0 and 1.0]",
+      "raw_content": "[relevant excerpt from fetched content, if available]"
+    }}
+  ]
+}}
+
+Significance scoring guide:
 - 0.0-0.3: Minor update, incremental progress
 - 0.4-0.6: Notable development, worth tracking
 - 0.7-0.9: Significant breakthrough or shift
 - 1.0: Field-defining, paradigm-shifting
 
-Return your findings as a JSON array.
+Only include items with significance_score >= 0.4.
 """
 
         try:
-            # Use Anthropic directly for now (SmolAgents integration can be refined later)
-            response = self.anthropic.messages.create(
-                model=settings.default_filter_model,
-                max_tokens=4096,
-                messages=[{"role": "user", "content": discover_prompt}],
-            )
+            # Run agent with tools
+            result = self.discovery_agent.run(discover_prompt)
 
-            # Parse response (simplified - would need better JSON extraction)
-            content = response.content[0].text
-            logger.info(f"Discovery response: {content[:500]}...")
+            logger.info(f"Discovery agent result type: {type(result)}")
+            logger.info(f"Discovery result: {str(result)[:500]}...")
 
-            # For now, return empty list - full implementation would parse JSON
-            # This is a placeholder for the actual agent-based discovery
+            # Parse the result - agent should return structured data via final_answer
             items_data: list[dict[str, Any]] = []
+
+            if isinstance(result, dict) and "findings" in result:
+                items_data = result["findings"]
+            elif isinstance(result, list):
+                items_data = result
+            elif isinstance(result, str):
+                # Try to parse JSON from string
+                try:
+                    parsed = json.loads(result)
+                    if isinstance(parsed, dict) and "findings" in parsed:
+                        items_data = parsed["findings"]
+                    elif isinstance(parsed, list):
+                        items_data = parsed
+                except json.JSONDecodeError:
+                    logger.warning("Could not parse result as JSON")
+
+            logger.info(f"Discovered {len(items_data)} items")
 
             self.event_log.append(
                 "items_discovered",
                 domain_id=self.config.id,
-                payload={"count": len(items_data), "raw_response": content[:1000]},
+                payload={"count": len(items_data)},
             )
 
             return items_data
 
         except Exception as e:
-            logger.error(f"Discovery failed for {self.config.name}: {e}")
+            logger.error(f"Discovery failed for {self.config.name}: {e}", exc_info=True)
             self.event_log.append(
                 "discovery_failed", domain_id=self.config.id, payload={"error": str(e)}
             )
@@ -117,60 +157,46 @@ Return your findings as a JSON array.
 
     async def filter_and_score(self, items_data: list[dict[str, Any]]) -> list[Item]:
         """
-        Filter and score discovered items.
-        Converts raw item data to Item objects with significance scores.
+        Convert discovered item dicts to Item objects.
+        The discovery agent already scored items, so we just convert to domain models.
         """
         if not items_data:
             return []
 
-        logger.info(f"Filtering {len(items_data)} items for domain: {self.config.name}")
+        logger.info(f"Converting {len(items_data)} discovered items to Item objects")
 
-        filter_prompt = f"""Review these research items for {self.config.name} and score their significance.
+        items: list[Item] = []
+        for item_data in items_data:
+            # Ensure significance_score is a float
+            sig_score = item_data.get("significance_score", 0.5)
+            if isinstance(sig_score, str):
+                try:
+                    sig_score = float(sig_score)
+                except ValueError:
+                    sig_score = 0.5
 
-{self.config.filter_prompt}
-
-Items to review:
-{self._format_items_for_prompt(items_data)}
-
-For each item, assign or verify the significance_score from 0.0 to 1.0.
-Return the items as a JSON array with updated scores if needed.
-"""
-
-        try:
-            response = self.anthropic.messages.create(
-                model=settings.default_filter_model,
-                max_tokens=2048,
-                messages=[{"role": "user", "content": filter_prompt}],
+            item = Item(
+                id=str(uuid4()),
+                domain_id=self.config.id,
+                title=item_data.get("title", "Unknown"),
+                source=item_data.get("source", "Unknown"),
+                source_url=item_data.get("source_url"),
+                summary=item_data.get("summary", ""),
+                significance=item_data.get("significance", ""),
+                significance_score=sig_score,
+                discovered_at=datetime.utcnow(),
+                raw_content=item_data.get("raw_content"),
             )
+            items.append(item)
 
-            # Parse and create Item objects
-            items: list[Item] = []
-            for item_data in items_data:
-                item = Item(
-                    id=str(uuid4()),
-                    domain_id=self.config.id,
-                    title=item_data.get("title", ""),
-                    source=item_data.get("source", ""),
-                    source_url=item_data.get("source_url"),
-                    summary=item_data.get("summary", ""),
-                    significance=item_data.get("significance", ""),
-                    significance_score=item_data.get("significance_score", 0.5),
-                    discovered_at=datetime.utcnow(),
-                )
-                items.append(item)
+        # Filter by minimum threshold (discovery should already do this, but double-check)
+        significant = [i for i in items if i.significance_score >= 0.4]
 
-            # Filter by minimum threshold
-            significant = [i for i in items if i.significance_score >= 0.4]
+        logger.info(
+            f"Converted to {len(significant)} significant items (>= 0.4 score)"
+        )
 
-            logger.info(
-                f"Filtered to {len(significant)} significant items (>= 0.4 score)"
-            )
-
-            return significant
-
-        except Exception as e:
-            logger.error(f"Filtering failed for {self.config.name}: {e}")
-            return []
+        return significant
 
     async def synthesize(self, items: list[Item]) -> DomainUpdate | None:
         """
@@ -182,6 +208,13 @@ Return the items as a JSON array with updated scores if needed.
 
         logger.info(f"Synthesizing update from {len(items)} items for: {self.config.name}")
 
+        # Create synthesis agent with structured output
+        synthesis_agent = ToolCallingAgent(
+            tools=[],  # No tools needed for synthesis
+            model=self.synthesis_model,
+            max_steps=3,
+        )
+
         synthesis_prompt = f"""Synthesize a domain update for {self.config.name}.
 
 {self.config.synthesis_prompt}
@@ -189,36 +222,63 @@ Return the items as a JSON array with updated scores if needed.
 Significant items discovered:
 {self._format_items_for_synthesis(items)}
 
-Create a comprehensive update with:
-1. A 2-3 paragraph summary of the current state
-2. Key developments (reference specific items by number)
-3. 3-5 open questions the field is grappling with
+Create a comprehensive update analyzing these developments.
 
-Be analytical, not promotional. Flag uncertainties.
+IMPORTANT: Use final_answer tool with this exact JSON structure:
+{{
+  "summary": "[2-3 paragraph analysis of current state and key developments, referencing items by number]",
+  "open_questions": [
+    "[first open question the field is grappling with]",
+    "[second open question]",
+    "[third open question]",
+    "[fourth open question - optional]",
+    "[fifth open question - optional]"
+  ]
+}}
+
+Guidelines for summary:
+1. Analyze the current frontier and active areas of investigation
+2. Highlight surprising developments or unexpected results
+3. Note areas where progress is blocked or slow
+4. Reference specific items by their number (e.g., "Item 1 demonstrates...")
+5. Be analytical, not promotional - flag uncertainties and contested claims
+
+Guidelines for open_questions:
+- Focus on questions the field is actively trying to answer
+- Avoid generic questions; make them specific to recent developments
+- Include both technical challenges and conceptual puzzles
 """
 
         try:
-            response = self.anthropic.messages.create(
-                model=settings.default_synthesis_model,
-                max_tokens=2048,
-                messages=[{"role": "user", "content": synthesis_prompt}],
-            )
+            result = synthesis_agent.run(synthesis_prompt)
 
-            summary = response.content[0].text
-            token_usage = response.usage.input_tokens + response.usage.output_tokens
+            logger.info(f"Synthesis result type: {type(result)}")
 
-            # Extract open questions (simplified - would use better parsing)
-            open_questions = [
-                "What will be the next major breakthrough?",
-                "How will this change the field?",
-                "What are the key technical challenges?",
-            ]
+            # Parse structured output
+            summary_text = ""
+            open_questions: list[str] = []
+
+            if isinstance(result, dict):
+                summary_text = result.get("summary", "")
+                open_questions = result.get("open_questions", [])
+            elif isinstance(result, str):
+                # Try to parse JSON
+                try:
+                    parsed = json.loads(result)
+                    summary_text = parsed.get("summary", result)
+                    open_questions = parsed.get("open_questions", [])
+                except json.JSONDecodeError:
+                    summary_text = result
+                    open_questions = []
+
+            # Estimate token usage (rough approximation)
+            token_usage = len(synthesis_prompt.split()) + len(summary_text.split())
 
             update = DomainUpdate(
                 id=str(uuid4()),
                 domain_id=self.config.id,
                 created_at=datetime.utcnow(),
-                summary=summary,
+                summary=summary_text,
                 item_ids=[item.id for item in items],
                 open_questions=open_questions,
                 token_usage=token_usage,
@@ -237,7 +297,7 @@ Be analytical, not promotional. Flag uncertainties.
             return update
 
         except Exception as e:
-            logger.error(f"Synthesis failed for {self.config.name}: {e}")
+            logger.error(f"Synthesis failed for {self.config.name}: {e}", exc_info=True)
             self.event_log.append(
                 "synthesis_failed", domain_id=self.config.id, payload={"error": str(e)}
             )

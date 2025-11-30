@@ -4,7 +4,6 @@ import asyncio
 import logging
 from datetime import datetime
 
-from anthropic import Anthropic
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
@@ -33,9 +32,6 @@ class Orchestrator:
         self.update_repo = UpdateRepository(self.db)
         self.event_log = EventLog()
         self.embeddings = EmbeddingStore()
-
-        # LLM client
-        self.anthropic = Anthropic(api_key=settings.anthropic_api_key)
 
         # Domain configurations
         self.domain_configs: dict[str, DomainConfig] = {
@@ -67,7 +63,6 @@ class Orchestrator:
                 config=config,
                 item_repo=self.item_repo,
                 event_log=self.event_log,
-                anthropic_client=self.anthropic,
             )
             self.agents[domain_id] = agent
             logger.info(f"Initialized agent for domain: {config.name}")
