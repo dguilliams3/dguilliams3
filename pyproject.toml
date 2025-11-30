@@ -1,0 +1,81 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "research-dashboard"
+version = "0.1.0"
+description = "Local-first research intelligence dashboard with LLM-powered agents"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    # FastAPI stack
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    "python-multipart>=0.0.6",
+    "sse-starlette>=1.8.2",
+
+    # Database
+    "aiosqlite>=0.19.0",
+    "chromadb>=0.4.22",
+
+    # Agent framework
+    "smolagents>=0.1.0",
+
+    # LLM providers
+    "anthropic>=0.18.0",
+
+    # Scheduling
+    "apscheduler>=3.10.4",
+
+    # HTTP clients
+    "httpx>=0.26.0",
+    "aiohttp>=3.9.0",
+
+    # Web scraping
+    "beautifulsoup4>=4.12.0",
+    "lxml>=5.1.0",
+
+    # Utilities
+    "python-dotenv>=1.0.0",
+    "pyyaml>=6.0.1",
+    "tenacity>=8.2.3",
+
+    # Embeddings (for ChromaDB)
+    "sentence-transformers>=2.3.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.1.0",
+    "httpx>=0.26.0",
+    "ruff>=0.1.0",
+    "mypy>=1.8.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["backend*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+select = ["E", "F", "I", "N", "W", "UP"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
