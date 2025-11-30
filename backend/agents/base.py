@@ -2,13 +2,14 @@
 
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 from uuid import uuid4
 
 from smolagents import ToolCallingAgent
 from smolagents.models import AnthropicModel
 
+from backend.agents.config_store import agent_config_store
 from backend.agents.tools import FetchURLTool, WebSearchTool
 from backend.config import settings
 from backend.db.events import EventLog
@@ -37,41 +38,46 @@ class DomainAgent:
             FetchURLTool(),
         ]
 
-        # Initialize SmolAgents model
-        self.model = AnthropicModel(
-            model_id=settings.default_filter_model,
+    def _get_agent_config(self):
+        """Get current agent configuration."""
+        return agent_config_store.get(self.config.id)
+
+    def _create_discovery_agent(self) -> ToolCallingAgent:
+        """Create discovery agent with current config."""
+        config = self._get_agent_config()
+        model = AnthropicModel(
+            model_id=config.discovery_model,
             api_key=settings.anthropic_api_key,
         )
-
-        # Create ToolCallingAgent for discovery
-        self.discovery_agent = ToolCallingAgent(
+        return ToolCallingAgent(
             tools=self.tools,
-            model=self.model,
-            max_steps=15,  # Allow multiple tool calls
+            model=model,
+            max_steps=config.discovery_max_steps,
             verbosity_level=1,
         )
 
-        # Create agent for synthesis (no tools needed)
-        self.synthesis_model = AnthropicModel(
-            model_id=settings.default_synthesis_model,
+    def _create_synthesis_agent(self) -> ToolCallingAgent:
+        """Create synthesis agent with current config."""
+        config = self._get_agent_config()
+        model = AnthropicModel(
+            model_id=config.synthesis_model,
             api_key=settings.anthropic_api_key,
         )
+        return ToolCallingAgent(
+            tools=[],
+            model=model,
+            max_steps=config.synthesis_max_steps,
+        )
 
-    async def discover(self) -> list[dict[str, Any]]:
-        """
-        Run discovery phase: search for new items in this domain.
-        Returns a list of discovered items as dicts.
-        """
-        logger.info(f"Starting discovery for domain: {self.config.name}")
-
+    def build_discovery_prompt(self) -> str:
+        """Build discovery prompt without executing it."""
         # Build search queries from sources
         search_queries = []
         for source in self.config.sources:
             if source.type == "web_search" and source.query:
                 search_queries.append(source.query)
 
-        # Create discovery prompt with proper final_answer guidance
-        discover_prompt = f"""You are researching recent developments in {self.config.name}.
+        return f"""You are researching recent developments in {self.config.name}.
 
 Domain description: {self.config.description}
 
@@ -113,9 +119,58 @@ Significance scoring guide:
 Only include items with significance_score >= 0.4.
 """
 
+    def build_synthesis_prompt(self, items: list[Item]) -> str:
+        """Build synthesis prompt without executing it."""
+        return f"""Synthesize a domain update for {self.config.name}.
+
+{self.config.synthesis_prompt}
+
+Significant items discovered:
+{self._format_items_for_synthesis(items)}
+
+Create a comprehensive update analyzing these developments.
+
+IMPORTANT: Use final_answer tool with this exact JSON structure:
+{{
+  "summary": "[2-3 paragraph analysis of current state and key developments, referencing items by number]",
+  "open_questions": [
+    "[first open question the field is grappling with]",
+    "[second open question]",
+    "[third open question]",
+    "[fourth open question - optional]",
+    "[fifth open question - optional]"
+  ]
+}}
+
+Guidelines for summary:
+1. Analyze the current frontier and active areas of investigation
+2. Highlight surprising developments or unexpected results
+3. Note areas where progress is blocked or slow
+4. Reference specific items by their number (e.g., "Item 1 demonstrates...")
+5. Be analytical, not promotional - flag uncertainties and contested claims
+
+Guidelines for open_questions:
+- Focus on questions the field is actively trying to answer
+- Avoid generic questions; make them specific to recent developments
+- Include both technical challenges and conceptual puzzles
+"""
+
+    async def discover(self) -> list[dict[str, Any]]:
+        """
+        Run discovery phase: search for new items in this domain.
+        Returns a list of discovered items as dicts.
+        """
+        logger.info(f"Starting discovery for domain: {self.config.name}")
+
+        # Build discovery prompt
+        discover_prompt = self.build_discovery_prompt()
+
         try:
+            # Create agent with current config
+            discovery_agent = self._create_discovery_agent()
+
             # Run agent with tools
-            result = self.discovery_agent.run(discover_prompt)
+            result = discovery_agent.run(discover_prompt)
 
             logger.info(f"Discovery agent result type: {type(result)}")
             logger.info(f"Discovery result: {str(result)[:500]}...")
@@ -208,48 +263,13 @@ Only include items with significance_score >= 0.4.
 
         logger.info(f"Synthesizing update from {len(items)} items for: {self.config.name}")
 
-        # Create synthesis agent with structured output
-        synthesis_agent = ToolCallingAgent(
-            tools=[],  # No tools needed for synthesis
-            model=self.synthesis_model,
-            max_steps=3,
-        )
-
-        synthesis_prompt = f"""Synthesize a domain update for {self.config.name}.
-
-{self.config.synthesis_prompt}
-
-Significant items discovered:
-{self._format_items_for_synthesis(items)}
-
-Create a comprehensive update analyzing these developments.
-
-IMPORTANT: Use final_answer tool with this exact JSON structure:
-{{
-  "summary": "[2-3 paragraph analysis of current state and key developments, referencing items by number]",
-  "open_questions": [
-    "[first open question the field is grappling with]",
-    "[second open question]",
-    "[third open question]",
-    "[fourth open question - optional]",
-    "[fifth open question - optional]"
-  ]
-}}
-
-Guidelines for summary:
-1. Analyze the current frontier and active areas of investigation
-2. Highlight surprising developments or unexpected results
-3. Note areas where progress is blocked or slow
-4. Reference specific items by their number (e.g., "Item 1 demonstrates...")
-5. Be analytical, not promotional - flag uncertainties and contested claims
-
-Guidelines for open_questions:
-- Focus on questions the field is actively trying to answer
-- Avoid generic questions; make them specific to recent developments
-- Include both technical challenges and conceptual puzzles
-"""
+        # Build synthesis prompt
+        synthesis_prompt = self.build_synthesis_prompt(items)
 
         try:
+            # Create agent with current config
+            synthesis_agent = self._create_synthesis_agent()
+
             result = synthesis_agent.run(synthesis_prompt)
 
             logger.info(f"Synthesis result type: {type(result)}")

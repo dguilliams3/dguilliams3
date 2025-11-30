@@ -64,3 +64,30 @@ class DashboardStats(BaseModel):
     total_token_usage: int
     items_by_domain: dict[str, int]
     avg_significance_by_domain: dict[str, float]
+
+
+class AgentConfig(BaseModel):
+    """Agent configuration for a domain."""
+
+    discovery_model: str = "claude-3-haiku-20240307"
+    synthesis_model: str = "claude-3-5-sonnet-20241022"
+    discovery_max_steps: int = 15
+    synthesis_max_steps: int = 3
+
+
+class PromptPreviewRequest(BaseModel):
+    """Request to preview agent prompts."""
+
+    domain_id: str
+    phase: str = Field(..., description="discovery or synthesis")
+
+
+class PromptPreviewResponse(BaseModel):
+    """Preview of agent prompt."""
+
+    domain_id: str
+    domain_name: str
+    phase: str
+    prompt: str
+    model: str
+    max_steps: int

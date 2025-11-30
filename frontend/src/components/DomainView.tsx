@@ -3,6 +3,8 @@ import { formatDistanceToNow } from 'date-fns';
 import type { DomainDetail, Item } from '../types';
 import { ItemCard } from './ItemCard';
 import { DrillDownModal } from './DrillDownModal';
+import { AgentSettings } from './AgentSettings';
+import { PromptPreview } from './PromptPreview';
 
 interface DomainViewProps {
   detail: DomainDetail | null;
@@ -14,11 +16,18 @@ interface DomainViewProps {
 export function DomainView({ detail, loading, onRefresh, onAskQuestion }: DomainViewProps) {
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showPromptPreview, setShowPromptPreview] = useState<'discovery' | 'synthesis' | null>(null);
 
   const handleRefresh = async () => {
     setRefreshing(true);
     await onRefresh();
     setTimeout(() => setRefreshing(false), 2000);
+  };
+
+  const handlePreviewPrompt = (phase: 'discovery' | 'synthesis') => {
+    setShowSettings(false);
+    setShowPromptPreview(phase);
   };
 
   if (loading) {
@@ -50,15 +59,23 @@ export function DomainView({ detail, loading, onRefresh, onAskQuestion }: Domain
           <p className="text-gray-600">{detail.domain.description}</p>
           <p className="text-sm text-gray-500 mt-1">Last updated: {lastUpdate}</p>
         </div>
-        <button
-          onClick={handleRefresh}
-          disabled={refreshing}
-          className={`px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-300 font-medium ${
-            refreshing ? 'animate-pulse' : ''
-          }`}
-        >
-          {refreshing ? 'Refreshing...' : 'Refresh Now'}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowSettings(true)}
+            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
+          >
+            ⚙️ Agent Settings
+          </button>
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className={`px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-300 font-medium ${
+              refreshing ? 'animate-pulse' : ''
+            }`}
+          >
+            {refreshing ? 'Refreshing...' : 'Refresh Now'}
+          </button>
+        </div>
       </div>
 
       {/* Latest Update Summary */}
@@ -105,6 +122,25 @@ export function DomainView({ detail, loading, onRefresh, onAskQuestion }: Domain
           item={selectedItem}
           onClose={() => setSelectedItem(null)}
           onAsk={(question) => onAskQuestion(selectedItem.id, question)}
+        />
+      )}
+
+      {/* Agent Settings Modal */}
+      {showSettings && (
+        <AgentSettings
+          domainId={detail.domain.id}
+          domainName={detail.domain.name}
+          onClose={() => setShowSettings(false)}
+          onPreviewPrompt={handlePreviewPrompt}
+        />
+      )}
+
+      {/* Prompt Preview Modal */}
+      {showPromptPreview && (
+        <PromptPreview
+          domainId={detail.domain.id}
+          phase={showPromptPreview}
+          onClose={() => setShowPromptPreview(null)}
         />
       )}
     </div>

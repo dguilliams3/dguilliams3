@@ -67,3 +67,19 @@ export interface AskResponse {
   citations: Item[];
   token_usage: number | null;
 }
+
+export interface AgentConfig {
+  discovery_model: string;
+  synthesis_model: string;
+  discovery_max_steps: number;
+  synthesis_max_steps: number;
+}
+
+export interface PromptPreviewResponse {
+  domain_id: string;
+  domain_name: string;
+  phase: string;
+  prompt: string;
+  model: string;
+  max_steps: number;
+}

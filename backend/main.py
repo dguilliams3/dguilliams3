@@ -10,14 +10,18 @@ from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sse_starlette.sse import EventSourceResponse
 
+from backend.agents.config_store import agent_config_store
 from backend.agents.orchestrator import Orchestrator
 from backend.config import settings
 from backend.models.api import (
+    AgentConfig,
     AskRequest,
     AskResponse,
     DashboardStats,
     DomainDetail,
     DomainSummary,
+    PromptPreviewRequest,
+    PromptPreviewResponse,
     RefreshRequest,
     RefreshResponse,
 )
@@ -195,6 +199,73 @@ async def refresh_domain(
 
     return RefreshResponse(
         status="refresh_started", message=f"Refresh started for domain: {domain.name}"
+    )
+
+
+@app.get("/api/domains/{domain_id}/agent-config", response_model=AgentConfig)
+async def get_agent_config(domain_id: str) -> AgentConfig:
+    """Get agent configuration for a domain."""
+    return agent_config_store.get(domain_id)
+
+
+@app.post("/api/domains/{domain_id}/agent-config", response_model=AgentConfig)
+async def update_agent_config(domain_id: str, config: AgentConfig) -> AgentConfig:
+    """Update agent configuration for a domain."""
+    if not orchestrator:
+        raise HTTPException(status_code=500, detail="Orchestrator not initialized")
+
+    # Verify domain exists
+    domain = await orchestrator.domain_repo.get(domain_id)
+    if not domain:
+        raise HTTPException(status_code=404, detail="Domain not found")
+
+    # Update config
+    agent_config_store.update(domain_id, config)
+    return config
+
+
+@app.post("/api/domains/{domain_id}/preview-prompt", response_model=PromptPreviewResponse)
+async def preview_prompt(domain_id: str, request: PromptPreviewRequest) -> PromptPreviewResponse:
+    """Preview the prompt that would be sent to the agent."""
+    if not orchestrator:
+        raise HTTPException(status_code=500, detail="Orchestrator not initialized")
+
+    # Get domain agent
+    agent = orchestrator.agents.get(domain_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Domain not found")
+
+    # Get agent config
+    config = agent_config_store.get(domain_id)
+
+    # Build prompt based on phase
+    if request.phase == "discovery":
+        prompt = agent.build_discovery_prompt()
+        model = config.discovery_model
+        max_steps = config.discovery_max_steps
+    elif request.phase == "synthesis":
+        # For synthesis, we need items - get recent ones
+        items = await orchestrator.item_repo.list_by_domain(
+            domain_id=domain_id, limit=10, min_significance=0.4
+        )
+        if not items:
+            raise HTTPException(
+                status_code=400,
+                detail="No items available for synthesis preview. Run discovery first."
+            )
+        prompt = agent.build_synthesis_prompt(items)
+        model = config.synthesis_model
+        max_steps = config.synthesis_max_steps
+    else:
+        raise HTTPException(status_code=400, detail="Invalid phase. Must be 'discovery' or 'synthesis'")
+
+    return PromptPreviewResponse(
+        domain_id=domain_id,
+        domain_name=agent.config.name,
+        phase=request.phase,
+        prompt=prompt,
+        model=model,
+        max_steps=max_steps,
     )
 
 
