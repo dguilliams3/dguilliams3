@@ -1,5 +1,6 @@
 """RAG (Retrieval Augmented Generation) service for Q&A."""
 
+import asyncio
 import logging
 from typing import Any
 
@@ -91,7 +92,11 @@ class RAGService:
         return "\n".join(context_parts)
 
     async def _generate_answer(self, question: str, context: str) -> tuple[str, int]:
-        """Generate answer using Claude with provided context."""
+        """Generate answer using Claude with provided context.
+
+        Note:
+            Runs Anthropic API call in thread pool to avoid blocking event loop.
+        """
         system_prompt = """You are a research assistant helping users understand developments in various scientific and technical fields.
 
 When answering questions:
@@ -109,7 +114,9 @@ Question: {question}
 Please provide a detailed answer based on the sources above. Cite your sources using [Source N] format."""
 
         try:
-            response = self.anthropic.messages.create(
+            # Run Anthropic API call in thread pool to avoid blocking
+            response = await asyncio.to_thread(
+                self.anthropic.messages.create,
                 model=settings.default_qa_model,
                 max_tokens=2048,
                 system=system_prompt,

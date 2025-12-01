@@ -44,6 +44,7 @@ See Also:
     - SMOLAGENTS_GUIDE.md: Tool usage patterns and best practices
 """
 
+import asyncio
 import json
 import logging
 from datetime import datetime
@@ -342,6 +343,10 @@ Guidelines for open_questions:
                 }
             ]
 
+        Implementation Note:
+            Agent execution runs in thread pool (asyncio.to_thread) to prevent
+            blocking the event loop during long-running LLM operations.
+
         Note:
             Returns empty list on failure (doesn't raise exception).
             Failures logged to event log for debugging.
@@ -355,8 +360,8 @@ Guidelines for open_questions:
             # Create agent with current config
             discovery_agent = self._create_discovery_agent()
 
-            # Run agent with tools
-            result = discovery_agent.run(discover_prompt)
+            # Run agent with tools (in thread pool to avoid blocking event loop)
+            result = await asyncio.to_thread(discovery_agent.run, discover_prompt)
 
             logger.info(f"Discovery agent result type: {type(result)}")
             logger.info(f"Discovery result: {str(result)[:500]}...")
@@ -495,6 +500,10 @@ Guidelines for open_questions:
                 token_usage=1250
             )
 
+        Implementation Note:
+            Agent execution runs in thread pool (asyncio.to_thread) to prevent
+            blocking the event loop during long-running LLM operations.
+
         Design Note:
             Uses higher quality model (typically Sonnet) than discovery
             since synthesis requires deeper analytical capabilities.
@@ -512,7 +521,8 @@ Guidelines for open_questions:
             # Create agent with current config
             synthesis_agent = self._create_synthesis_agent()
 
-            result = synthesis_agent.run(synthesis_prompt)
+            # Run agent with tools (in thread pool to avoid blocking event loop)
+            result = await asyncio.to_thread(synthesis_agent.run, synthesis_prompt)
 
             logger.info(f"Synthesis result type: {type(result)}")
 

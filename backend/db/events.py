@@ -1,5 +1,6 @@
 """Append-only event log for system auditing and debugging."""
 
+import asyncio
 import json
 from datetime import datetime
 from pathlib import Path
@@ -20,7 +21,12 @@ class EventLog:
     def append(
         self, event_type: str, domain_id: str | None = None, payload: dict[str, Any] | None = None
     ) -> Event:
-        """Append a new event to the log."""
+        """Append a new event to the log synchronously.
+
+        Note: This is intentionally synchronous for compatibility with synchronous
+        contexts (like within SmolAgents tools). The file write is fast (<1ms)
+        and buffered by the OS, so blocking is minimal.
+        """
         event = Event(
             id=str(uuid4()),
             timestamp=datetime.utcnow(),
@@ -35,17 +41,25 @@ class EventLog:
 
         return event
 
-    def read_all(self, limit: int | None = None) -> list[Event]:
-        """Read all events from the log."""
+    async def read_all(self, limit: int | None = None) -> list[Event]:
+        """Read all events from the log.
+
+        Note:
+            Runs file I/O in thread pool to avoid blocking event loop.
+        """
         if not self.log_path.exists():
             return []
 
-        events: list[Event] = []
-        with open(self.log_path, "r") as f:
-            for line in f:
-                if line.strip():
-                    event_data = json.loads(line)
-                    events.append(Event(**event_data))
+        def _read_events() -> list[Event]:
+            events: list[Event] = []
+            with open(self.log_path, "r") as f:
+                for line in f:
+                    if line.strip():
+                        event_data = json.loads(line)
+                        events.append(Event(**event_data))
+            return events
+
+        events = await asyncio.to_thread(_read_events)
 
         # Return most recent first
         events.reverse()
@@ -54,18 +68,18 @@ class EventLog:
             return events[:limit]
         return events
 
-    def read_by_domain(self, domain_id: str, limit: int | None = None) -> list[Event]:
+    async def read_by_domain(self, domain_id: str, limit: int | None = None) -> list[Event]:
         """Read events for a specific domain."""
-        all_events = self.read_all()
+        all_events = await self.read_all()
         domain_events = [e for e in all_events if e.domain_id == domain_id]
 
         if limit:
             return domain_events[:limit]
         return domain_events
 
-    def read_by_type(self, event_type: str, limit: int | None = None) -> list[Event]:
+    async def read_by_type(self, event_type: str, limit: int | None = None) -> list[Event]:
         """Read events of a specific type."""
-        all_events = self.read_all()
+        all_events = await self.read_all()
         typed_events = [e for e in all_events if e.event_type == event_type]
 
         if limit:

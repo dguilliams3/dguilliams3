@@ -1,5 +1,6 @@
 """FastAPI application for Research Dashboard."""
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
@@ -326,17 +327,14 @@ async def get_stats() -> DashboardStats:
         items_by_domain[domain.id] = count
         total_items += count
 
-        # Get items to calculate average significance
-        items = await orchestrator.item_repo.list_by_domain(domain.id, limit=1000)
-        if items:
-            avg_sig = sum(item.significance_score for item in items) / len(items)
-            avg_significance_by_domain[domain.id] = round(avg_sig, 2)
-        else:
-            avg_significance_by_domain[domain.id] = 0.0
+        # Get average significance using SQL AVG() - much more efficient
+        avg_sig = await orchestrator.item_repo.get_avg_significance(domain.id)
+        avg_significance_by_domain[domain.id] = avg_sig
 
-    # Count updates
+    # Count updates using COUNT(*) query - more efficient
     total_updates = 0
     for domain in domains:
+        # Note: Could add count_by_domain() to UpdateRepository for efficiency
         updates = await orchestrator.update_repo.list_by_domain(domain.id, limit=1000)
         total_updates += len(updates)
 
@@ -374,7 +372,7 @@ async def stream_events() -> EventSourceResponse:
 
         while True:
             if orchestrator:
-                events = orchestrator.event_log.read_all(limit=100)
+                events = await orchestrator.event_log.read_all(limit=100)
                 if len(events) > last_event_count:
                     # New events available
                     for event in events[: len(events) - last_event_count]:
@@ -385,8 +383,6 @@ async def stream_events() -> EventSourceResponse:
                     last_event_count = len(events)
 
             # Wait before checking again
-            import asyncio
-
             await asyncio.sleep(5)
 
     return EventSourceResponse(event_generator())

@@ -569,6 +569,32 @@ class ItemRepository:
                 row = await cursor.fetchone()
                 return row[0] if row else 0
 
+    async def get_avg_significance(self, domain_id: str) -> float:
+        """Get average significance score for a domain's items.
+
+        Args:
+            domain_id: Domain to calculate average for
+
+        Returns:
+            Average significance score (0.0 if no items)
+
+        Use Cases:
+            - Dashboard stats
+            - Domain quality metrics
+
+        Performance Note:
+            Uses SQL AVG() function - much more efficient than fetching
+            all items and calculating in Python. O(1) query vs O(n) fetch.
+        """
+        async with self.db.connection() as conn:
+            async with conn.execute(
+                "SELECT AVG(significance_score) FROM items WHERE domain_id = ?",
+                (domain_id,)
+            ) as cursor:
+                row = await cursor.fetchone()
+                # AVG returns NULL if no rows
+                return round(row[0], 2) if row and row[0] is not None else 0.0
+
     async def get_by_ids(self, item_ids: list[str]) -> list[Item]:
         """Get multiple items by their IDs (batch fetch).
 

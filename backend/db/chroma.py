@@ -1,5 +1,6 @@
 """ChromaDB integration for semantic search and embeddings."""
 
+import asyncio
 import logging
 from pathlib import Path
 from typing import Any
@@ -38,7 +39,11 @@ class EmbeddingStore:
         logger.info(f"ChromaDB initialized at {self.persist_path}")
 
     async def add_item(self, item: Item) -> str:
-        """Add an item to the vector store."""
+        """Add an item to the vector store.
+
+        Note:
+            Runs ChromaDB operation in thread pool to avoid blocking event loop.
+        """
         try:
             # Create document text from item fields
             document = self._item_to_document(item)
@@ -53,8 +58,9 @@ class EmbeddingStore:
                 "discovered_at": item.discovered_at.isoformat(),
             }
 
-            # Add to collection
-            self.collection.add(
+            # Add to collection (in thread pool to avoid blocking)
+            await asyncio.to_thread(
+                self.collection.add,
                 ids=[item.id],
                 documents=[document],
                 metadatas=[metadata],
@@ -73,14 +79,20 @@ class EmbeddingStore:
         """
         Search for semantically similar items.
         Returns list of (item_dict, similarity_score) tuples.
+
+        Note:
+            Runs ChromaDB operation in thread pool to avoid blocking event loop.
         """
         try:
             # Build where filter if domain_id provided
             where_filter = {"domain_id": domain_id} if domain_id else None
 
-            # Query collection
-            results = self.collection.query(
-                query_texts=[query], n_results=limit, where=where_filter
+            # Query collection (in thread pool to avoid blocking)
+            results = await asyncio.to_thread(
+                self.collection.query,
+                query_texts=[query],
+                n_results=limit,
+                where=where_filter
             )
 
             if not results["ids"] or not results["ids"][0]:
@@ -114,9 +126,13 @@ class EmbeddingStore:
             return []
 
     async def get_by_id(self, item_id: str) -> dict[str, Any] | None:
-        """Get an item from the vector store by ID."""
+        """Get an item from the vector store by ID.
+
+        Note:
+            Runs ChromaDB operation in thread pool to avoid blocking event loop.
+        """
         try:
-            result = self.collection.get(ids=[item_id])
+            result = await asyncio.to_thread(self.collection.get, ids=[item_id])
 
             if not result["ids"]:
                 return None
@@ -139,9 +155,13 @@ class EmbeddingStore:
             return None
 
     async def delete_item(self, item_id: str) -> None:
-        """Delete an item from the vector store."""
+        """Delete an item from the vector store.
+
+        Note:
+            Runs ChromaDB operation in thread pool to avoid blocking event loop.
+        """
         try:
-            self.collection.delete(ids=[item_id])
+            await asyncio.to_thread(self.collection.delete, ids=[item_id])
             logger.debug(f"Deleted item from vector store: {item_id}")
         except Exception as e:
             logger.error(f"Failed to delete item from vector store: {e}")

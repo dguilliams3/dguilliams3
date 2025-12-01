@@ -113,9 +113,11 @@ See Also:
     - SmolAgents docs: https://huggingface.co/docs/smolagents
 """
 
+import ipaddress
 import logging
 from datetime import datetime
 from typing import Any
+from urllib.parse import urlparse
 from uuid import uuid4
 
 import httpx
@@ -126,6 +128,77 @@ from backend.db.sqlite import ItemRepository
 from backend.models.domain import Item
 
 logger = logging.getLogger(__name__)
+
+
+def _is_safe_url(url: str) -> tuple[bool, str]:
+    """Validate URL for SSRF protection.
+
+    Args:
+        url: URL to validate
+
+    Returns:
+        Tuple of (is_safe, error_message)
+
+    Security Checks:
+        - Scheme must be http or https
+        - No private IP ranges (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16)
+        - No localhost or loopback (127.0.0.0/8, ::1)
+        - No link-local addresses (169.254.0.0/16)
+        - No cloud metadata endpoints
+        - No special-use addresses
+
+    Design Note:
+        This prevents SSRF (Server-Side Request Forgery) attacks where
+        malicious URLs could access internal services or cloud metadata.
+    """
+    try:
+        parsed = urlparse(url)
+
+        # Check scheme
+        if parsed.scheme not in ("http", "https"):
+            return False, f"Invalid scheme: {parsed.scheme}. Only http/https allowed."
+
+        # Get hostname
+        hostname = parsed.hostname
+        if not hostname:
+            return False, "No hostname in URL"
+
+        # Try to resolve to IP address
+        try:
+            # Get IP address from hostname
+            import socket
+            ip = socket.gethostbyname(hostname)
+            ip_addr = ipaddress.ip_address(ip)
+
+            # Block private IP ranges
+            if ip_addr.is_private:
+                return False, f"Private IP address not allowed: {ip}"
+
+            # Block loopback
+            if ip_addr.is_loopback:
+                return False, f"Loopback address not allowed: {ip}"
+
+            # Block link-local (169.254.0.0/16 - AWS/cloud metadata)
+            if ip_addr.is_link_local:
+                return False, f"Link-local address not allowed: {ip}"
+
+            # Block reserved/special-use addresses
+            if ip_addr.is_reserved:
+                return False, f"Reserved IP address not allowed: {ip}"
+
+            # Additional check for cloud metadata endpoint
+            if ip == "169.254.169.254":
+                return False, "Cloud metadata endpoint not allowed"
+
+        except socket.gaierror:
+            # DNS resolution failed - could be invalid domain
+            # We'll allow this and let httpx handle it with proper error
+            pass
+
+        return True, ""
+
+    except Exception as e:
+        return False, f"URL validation error: {str(e)}"
 
 
 class WebSearchTool(Tool):
@@ -375,15 +448,28 @@ class FetchURLTool(Tool):
             Never raises - always returns string for LLM.
 
         Implementation:
+            - Validates URL for SSRF protection (blocks private IPs, localhost, etc.)
             - Uses httpx for async-capable HTTP (though called sync here)
             - BeautifulSoup with lxml for fast HTML parsing
             - Removes nav/footer/header/script/style for cleaner text
             - Truncates to 10000 chars to prevent token overflow
 
+        Security:
+            SSRF protection via _is_safe_url():
+            - Only http/https schemes allowed
+            - Blocks private IP ranges, localhost, cloud metadata
+            - Prevents access to internal services
+
         Design Note:
             Returns formatted string prefixed with URL so LLM knows
             the source of content (important for citation/attribution).
         """
+        # SECURITY: Validate URL to prevent SSRF attacks
+        is_safe, error_msg = _is_safe_url(url)
+        if not is_safe:
+            logger.warning(f"Blocked unsafe URL: {url} - {error_msg}")
+            return f"Error: URL blocked for security reasons - {error_msg}"
+
         try:
             headers = {
                 "User-Agent": "Mozilla/5.0 (compatible; ResearchBot/1.0)",
