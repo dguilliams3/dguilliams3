@@ -52,6 +52,8 @@ dev = [
     "pytest>=7.4.0",
     "pytest-asyncio>=0.23.0",
     "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+    "pytest-xdist>=3.5.0",  # Parallel test execution
     "httpx>=0.26.0",
     "ruff>=0.1.0",
     "mypy>=1.8.0",
@@ -62,11 +64,73 @@ where = ["."]
 include = ["backend*"]
 
 [tool.pytest.ini_options]
+# Async support
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+# Test discovery
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+
+# Test markers (defined in conftest.py pytest_configure hook)
+markers = [
+    "unit: Fast isolated unit tests (no external dependencies)",
+    "integration: Tests with database or multiple components",
+    "slow: Tests that take > 1 second to run",
+    "requires_api: Tests that need real API credentials (skip in CI)",
+]
+
+# Output and reporting
+addopts = [
+    "-ra",  # Show summary of all test outcomes
+    "--strict-markers",  # Raise error on unknown markers
+    "--strict-config",  # Raise error on config issues
+    "--showlocals",  # Show local variables in tracebacks
+    "-v",  # Verbose output
+]
+
+# Minimum version
+minversion = "7.4"
+
+# Ignore patterns
+norecursedirs = [
+    ".*",
+    "build",
+    "dist",
+    "*.egg",
+    "data",
+    "logs",
+]
+
+[tool.coverage.run]
+source = ["backend"]
+branch = true
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__pycache__/*",
+    "*/site-packages/*",
+]
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+[tool.coverage.html]
+directory = "htmlcov"
 
 [tool.ruff]
 line-length = 100
