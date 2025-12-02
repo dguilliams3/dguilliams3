@@ -301,6 +301,17 @@ class WebSearchTool(Tool):
         # Create shared HTTP client for connection pooling
         self.client = httpx.Client(timeout=10.0)
 
+    def __del__(self) -> None:
+        """Clean up HTTP client on destruction.
+
+        Resource Management:
+            Ensures httpx.Client is properly closed to prevent socket/connection
+            leaks. Critical for long-running processes to avoid file descriptor
+            exhaustion.
+        """
+        if hasattr(self, "client"):
+            self.client.close()
+
     def forward(self, query: str, max_results: int = 10) -> str:
         """Execute web search and return formatted results.
 
@@ -449,6 +460,17 @@ class FetchURLTool(Tool):
         super().__init__()
         # Create shared HTTP client for connection pooling
         self.client = httpx.Client(timeout=15.0, follow_redirects=True)
+
+    def __del__(self) -> None:
+        """Clean up HTTP client on destruction.
+
+        Resource Management:
+            Ensures httpx.Client is properly closed to prevent socket/connection
+            leaks. Critical for long-running processes to avoid file descriptor
+            exhaustion.
+        """
+        if hasattr(self, "client"):
+            self.client.close()
 
     def forward(self, url: str) -> str:
         """Fetch and extract text content from URL.
