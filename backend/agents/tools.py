@@ -115,6 +115,7 @@ See Also:
 
 import ipaddress
 import logging
+import socket
 from datetime import datetime
 from typing import Any
 from urllib.parse import urlparse
@@ -166,7 +167,6 @@ def _is_safe_url(url: str) -> tuple[bool, str]:
         # Try to resolve to IP address
         try:
             # Get IP address from hostname
-            import socket
             ip = socket.gethostbyname(hostname)
             ip_addr = ipaddress.ip_address(ip)
 
@@ -286,19 +286,20 @@ class WebSearchTool(Tool):
     output_type = "string"
 
     def __init__(self, api_key: str | None = None) -> None:
-        """Initialize web search tool with Brave API key.
+        """Initialize web search tool with Brave API key and HTTP client.
 
         Args:
             api_key: Brave Search API key. If None, tool will return errors.
                     Get key from: https://brave.com/search/api/
 
         Design Note:
-            Accepts None to allow tool instantiation without key (useful for
-            testing or when tool won't be used). Tool gracefully handles
-            missing key by returning error message.
+            Creates a shared httpx.Client for connection pooling and
+            better performance across multiple requests.
         """
         super().__init__()
         self.api_key = api_key
+        # Create shared HTTP client for connection pooling
+        self.client = httpx.Client(timeout=10.0)
 
     def forward(self, query: str, max_results: int = 10) -> str:
         """Execute web search and return formatted results.
@@ -328,7 +329,8 @@ class WebSearchTool(Tool):
             }
             params = {"q": query, "count": max_results}
 
-            response = httpx.get(url, headers=headers, params=params, timeout=10.0)
+            # Use shared client for connection pooling
+            response = self.client.get(url, headers=headers, params=params)
             response.raise_for_status()
 
             data = response.json()
@@ -437,6 +439,17 @@ class FetchURLTool(Tool):
     }
     output_type = "string"
 
+    def __init__(self) -> None:
+        """Initialize fetch URL tool with shared HTTP client.
+
+        Design Note:
+            Creates a shared httpx.Client for connection pooling and
+            better performance across multiple URL fetches.
+        """
+        super().__init__()
+        # Create shared HTTP client for connection pooling
+        self.client = httpx.Client(timeout=15.0, follow_redirects=True)
+
     def forward(self, url: str) -> str:
         """Fetch and extract text content from URL.
 
@@ -474,7 +487,8 @@ class FetchURLTool(Tool):
             headers = {
                 "User-Agent": "Mozilla/5.0 (compatible; ResearchBot/1.0)",
             }
-            response = httpx.get(url, headers=headers, timeout=15.0, follow_redirects=True)
+            # Use shared client for connection pooling
+            response = self.client.get(url, headers=headers)
             response.raise_for_status()
 
             # Extract text using BeautifulSoup

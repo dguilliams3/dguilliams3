@@ -777,6 +777,31 @@ class UpdateRepository:
                 rows = await cursor.fetchall()
                 return [self._row_to_update(row) for row in rows]
 
+    async def count_by_domain(self, domain_id: str) -> int:
+        """Count updates for a domain.
+
+        Args:
+            domain_id: Domain to count
+
+        Returns:
+            Total number of updates for domain
+
+        Use Cases:
+            - Dashboard stats
+            - Domain activity metrics
+
+        Performance Note:
+            Uses SQL COUNT(*) - much more efficient than fetching
+            all updates just to count them. O(1) query vs O(n) fetch.
+        """
+        async with self.db.connection() as conn:
+            async with conn.execute(
+                "SELECT COUNT(*) FROM updates WHERE domain_id = ?",
+                (domain_id,)
+            ) as cursor:
+                row = await cursor.fetchone()
+                return row[0] if row else 0
+
     async def get_total_token_usage(self) -> int:
         """Get total token usage across all updates.
 

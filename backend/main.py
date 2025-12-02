@@ -331,12 +331,11 @@ async def get_stats() -> DashboardStats:
         avg_sig = await orchestrator.item_repo.get_avg_significance(domain.id)
         avg_significance_by_domain[domain.id] = avg_sig
 
-    # Count updates using COUNT(*) query - more efficient
+    # Count updates using SQL COUNT(*) - much more efficient
     total_updates = 0
     for domain in domains:
-        # Note: Could add count_by_domain() to UpdateRepository for efficiency
-        updates = await orchestrator.update_repo.list_by_domain(domain.id, limit=1000)
-        total_updates += len(updates)
+        count = await orchestrator.update_repo.count_by_domain(domain.id)
+        total_updates += count
 
     # Get total token usage
     total_token_usage = await orchestrator.update_repo.get_total_token_usage()

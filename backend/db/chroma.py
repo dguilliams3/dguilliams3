@@ -166,14 +166,21 @@ class EmbeddingStore:
         except Exception as e:
             logger.error(f"Failed to delete item from vector store: {e}")
 
-    def count_items(self, domain_id: str | None = None) -> int:
-        """Count items in the vector store."""
+    async def count_items(self, domain_id: str | None = None) -> int:
+        """Count items in the vector store.
+
+        Note:
+            Runs ChromaDB operation in thread pool to avoid blocking event loop.
+        """
         try:
             if domain_id:
-                result = self.collection.get(where={"domain_id": domain_id})
+                result = await asyncio.to_thread(
+                    self.collection.get,
+                    where={"domain_id": domain_id}
+                )
                 return len(result["ids"]) if result["ids"] else 0
             else:
-                return self.collection.count()
+                return await asyncio.to_thread(self.collection.count)
         except Exception as e:
             logger.error(f"Failed to count items: {e}")
             return 0
