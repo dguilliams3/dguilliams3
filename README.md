@@ -1,8 +1,11 @@
 # Dan Guilliams
 
 ⚙️ **AI Engineer & Architect** · multi-agent orchestration, production AI, and alignment from the engineering side.
+
 <img src="https://raw.githubusercontent.com/dguilliams3/dguilliams3/main/assets/Dan_Guilliams_Logo_Circle.png" alt="Fox King" height="18" style="vertical-align: middle;" /> [**danguilliams.com**](https://danguilliams.com) · 📫 dan.guilliams@danguilliams.com
+
 *Doing my part to make the singularity a good one.*
+
 ---
 
 I build systems that treat AI agents as durable engineering teammates rather than one-off prompts: orchestration frameworks, production pipelines, and the operating scaffolds that make multi-agent work reliable, observable, and safe.
