@@ -1,6 +1,6 @@
 # Dan Guilliams
 
-⚙️ **AI Engineer & Architect** · multi-agent orchestration, production AI, and alignment from the engineering side.
+⚙️ **Staff AI Engineer & Architect** · multi-agent orchestration, production AI, and alignment from the engineering side.
 
 <img src="https://raw.githubusercontent.com/dguilliams3/dguilliams3/main/assets/Dan_Guilliams_Logo_Circle.png" alt="Fox King" height="18" style="vertical-align: middle;" /> [**danguilliams.com**](https://danguilliams.com) · 📫 dan.guilliams@danguilliams.com
 
@@ -43,7 +43,7 @@ I work on AI agents from two sides: the ones I ship, and the ones I build with. 
 
 ## ✍️ Writing
 
-**[Offensive Subliminal Learning](https://danguilliams.com/osl).** An alignment proposal: behavioral selection and trait transmission over semantically meaningless data, to build alignment mechanisms models cannot easily detect or game.
+**[Offensive Subliminal Learning](https://danguilliams.com/osl)** · [front-paged on LessWrong](https://www.lesswrong.com/posts/Mksvfp4rWCLKvxaFf/bypassing-situational-awareness-offensive-subliminal). An alignment proposal: behavioral selection and trait transmission over semantically meaningless data, to build alignment mechanisms models cannot easily detect or game.
 
 ## Connect
 
