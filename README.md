@@ -1,37 +1,47 @@
 # Dan Guilliams
 
-⚙️ AI Engineer | Architect | Systems Whisperer  
-🧠 *Doing my part to make the singularity a good one.*  
+⚙️ **AI Engineer & Architect** · multi-agent orchestration, production AI, and alignment from the engineering side.
+🦊 *Doing my part to make the singularity a good one.*
 <img src="https://raw.githubusercontent.com/dguilliams3/dguilliams3/main/assets/Dan_Guilliams_Logo_Circle.png" alt="Fox King" height="18" style="vertical-align: middle;" /> [**danguilliams.com**](https://danguilliams.com) · 📫 dan.guilliams@danguilliams.com
 
 ---
 
+I build systems that treat AI agents as durable engineering teammates rather than one-off prompts: orchestration frameworks, production pipelines, and the operating scaffolds that make multi-agent work reliable, observable, and safe.
+
 ## 📦 Featured Projects
 
-### 🛡️ [Agentic CVE Triage System](https://github.com/dguilliams3/mcp-agentic-security-escalation)
+### 🧭 [4th Layer Scaffold](https://github.com/dguilliams3/4th-layer-scaffold)
+> An open-source operating environment for Claude Code: hooks, run tracking, and a multi-agent council protocol that turns agents into a coordinated engineering team.
 
-> ⚙️ LangChain ReAct agent built with MCP-adhering tool isolation    
-> 🧠 Uses FAISS + GPT-4o-mini + OpenAI Embeddings for semantic CVE matching and risk assessment    
-> 📎 Structured prompt injection (RAG) with enforced JSON output schemas    
-> 🚀 High-throughput async batching with decoupled logging and persistence    
-> 🐳 Dockerized stack with Redis, FastAPI, SQLite, and Streamlit dashboard    
-> 🔒 Designed for scalable, explainable security incident triage in real-world workflows
+### 🎩 [Claude Chief of Staff](https://github.com/dguilliams3/claude-chief-of-staff)
+> A personal AI Chief of Staff: a fleet of named, addressable agent-citizens producing operational briefings and field intelligence, with durable identity, lifecycle, and messaging.
 
----
+## 🧪 Earlier Agent Work
 
-### 📚 [Narrative RAG](https://github.com/dguilliams3/narrative-data-process-for-RAG-pipeline)
-> Long-form context retrieval + GPT-based answering  
-> 🧾 Designed for high-fidelity narrative QA  
-> ⚙️ FAISS + Elasticsearch + GPT-4o pipeline
+*Take-home assignments I built into full end-to-end systems (~a year+ old). Earlier work, but real agent engineering, not toy demos.*
 
----
+<table>
+<tr>
+<td width="50%" valign="top">
 
-### 🔊 [AI Audio Stack](https://github.com/dguilliams3/ai-audio-processing-pipeline)
-> Wav2Vec2 fine-tuning pipeline  
-> ⛓️ Full MLOps: Docker, GitHub Actions, S3 checkpoints  
-> 🧪 Real-world audio modeling setup
+### 📖 [Book Recommendation Engine](https://github.com/dguilliams3/book-recommendation-engine)
 
----
+> Production-grade distributed recommender: 12+ microservices on Docker Compose, FAISS + OpenAI embeddings, Kafka event streams, and 7+ MCP tools, with Prometheus monitoring and Redis caching.
+
+</td>
+<td width="50%" valign="top">
+
+### 🛡️ [Agentic CVE Triage](https://github.com/dguilliams3/mcp-agentic-security-escalation)
+
+> LangChain ReAct agent with MCP tool isolation: FAISS + GPT-4o-mini semantic CVE matching and risk scoring, RAG with enforced JSON schemas, async batching, Dockerized (Redis, FastAPI, Streamlit).
+
+</td>
+</tr>
+</table>
+
+## ✍️ Writing
+
+**[Offensive Subliminal Learning](https://danguilliams.com/osl).** An alignment proposal: behavioral selection and trait transmission over semantically meaningless data, to build alignment mechanisms models cannot easily detect or game.
 
 ## Connect
 
@@ -40,5 +50,4 @@
 [![Docker](https://img.shields.io/badge/Docker-%230db7ed.svg?logo=docker&logoColor=white)](https://hub.docker.com/u/dguilliams3)
 
 ---
-
 > *Negentropic wizardry in production.*
