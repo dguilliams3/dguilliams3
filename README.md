@@ -8,7 +8,7 @@
 
 ---
 
-I build systems that treat AI agents as durable engineering teammates rather than one-off prompts: orchestration frameworks, production pipelines, and the operating scaffolds that make multi-agent work reliable, observable, and safe.
+I work on AI agents from two sides: the ones I ship, and the ones I build with. Professionally, I architect **production agent systems**: a provider-agnostic runtime where one codebase powers many distinct agents that coordinate, review, and refine each other's work. In my own workflow, I orchestrate **fleets of AI agents as engineering teammates**, treating multi-agent development as a method, not a novelty.
 
 ## 📦 Featured Projects
 
