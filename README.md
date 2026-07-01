@@ -18,7 +18,7 @@ I build systems that treat AI agents as durable engineering teammates rather tha
 
 ## 🧪 Earlier Agent Work
 
-*Take-home assignments I built into full end-to-end systems (~a year+ old). Earlier work, but real agent engineering, not toy demos.*
+*Full end-to-end systems (~a year+ old). Earlier work, but real agent engineering, not toy demos.*
 
 <table>
 <tr>
